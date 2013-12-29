@@ -1,5 +1,5 @@
 /* PiMonitor.c -- Monitors various analog & Digital channnels and spits them out on a UDP socket */
-/* Based on a few bits a bobs 									 */
+/* Based on adc.c from ABElectronics and an example bit of code for UDP Broadcast		 */
 
 #include <stdio.h>
 #include <stdint.h>
@@ -17,6 +17,7 @@
 #include <linux/i2c-dev.h>
 
 #include "BroadcastCommon.h"
+#include "PiMonitor.h"
 
 // define adc chips addresses and channel modes
 #define ADC_1 		0x68
@@ -29,10 +30,9 @@
 const float varDivisior = 64; // from pdf sheet on adc addresses and config for 18 bit mode
 static float varMultiplier = 0;
 
-
 float getadc (int chn);  
 
-
+/* MAIN LOOP */
 int main(int argc, char **argv) {
 int i;
 float val;
@@ -44,7 +44,7 @@ int sock;                         /* Socket */
 struct sockaddr_in broadcastAddr; /* Broadcast address */
 char *broadcastIP;                /* IP broadcast address */
 unsigned short broadcastPort;     /* Server port */
-char *sendString;                 /* String to broadcast */
+char sendString[255];                 /* String to broadcast */
 int broadcastPermission;          /* Socket opt to set permission to broadcast */
 unsigned int sendStringLen;       /* Length of string to broadcast */
 char *configkeys[MAX_CONFIG_LINES];          /* config file entries */
@@ -52,11 +52,17 @@ char *configvalues[MAX_CONFIG_LINES];          /* config file entries */
 char *configfile="/etc/pimonitor/pimonitor.conf";
 char *logfile;
 FILE *logfilepointer;
+int numChannels = 1;
+
+Channels aChannels[9];
+
 
 /* TEMP HARDCODE! */
 broadcastPort = 2345;
 broadcastIP = "255.255.255.255";
-sendString = "BatteryVoltage 24.5v";
+aChannels[1].channum = 0;
+aChannels[1].broadcastName = "BatteryVoltage";
+aChannels[1].multiplier = 1;
 
 /* Create socket for sending/receiving datagrams */
 if ((sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
@@ -75,12 +81,20 @@ broadcastAddr.sin_port = htons(broadcastPort);         /* Broadcast port */
 
 while(1)
 	{
-	sendStringLen = strlen(sendString);  /* Find length of sendString */
+	printf("x");
+	for(channel=1;channel<=numChannels;++channel)
+		{
+		val = getadc(channel);
+		printf ("Channel: %d  - %2.4fV\n",channel,val);  
+		sendStringLen = sprintf(sendString,"%s %.2f",aChannels[channel].broadcastName,val*aChannels[channel].multiplier);
+		printf("%i %i\n",sendStringLen,strlen(sendString));
 
-	/* Broadcast sendString in datagram to clients once */
-	if (sendto(sock, sendString, sendStringLen, 0, (struct sockaddr *) &broadcastAddr, sizeof(broadcastAddr)) != sendStringLen)
-       		 DieWithError("sendto() sent a different number of bytes than expected");
-		
+		/* Broadcast sendString in datagram to clients once */
+		if (sendto(sock, sendString, sendStringLen, 0, (struct sockaddr *) &broadcastAddr, sizeof(broadcastAddr)) != sendStringLen)
+       			DieWithError("sendto() sent a different number of bytes than expected");
+		printf("y");
+		}
+	printf("z");
 	sleep(1);
 	}
 
