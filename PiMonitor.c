@@ -52,7 +52,7 @@ char *configvalues[MAX_CONFIG_LINES];          /* config file entries */
 char *configfile="/etc/pimonitor/pimonitor.conf";
 char *logfile;
 FILE *logfilepointer;
-int numChannels = 1;
+int numChannels = 8;
 
 Channels aChannels[9];
 
@@ -60,9 +60,10 @@ Channels aChannels[9];
 /* TEMP HARDCODE! */
 broadcastPort = 2345;
 broadcastIP = "255.255.255.255";
-aChannels[1].channum = 0;
 aChannels[1].broadcastName = "BatteryVoltage";
 aChannels[1].multiplier = 1;
+aChannels[8].broadcastName = "WindDirection";
+aChannels[8].multiplier = 1;
 
 /* Create socket for sending/receiving datagrams */
 if ((sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
@@ -81,20 +82,16 @@ broadcastAddr.sin_port = htons(broadcastPort);         /* Broadcast port */
 
 while(1)
 	{
-	printf("x");
-	for(channel=1;channel<=numChannels;++channel)
+	for(channel=8;channel<=numChannels;++channel)
 		{
 		val = getadc(channel);
 		printf ("Channel: %d  - %2.4fV\n",channel,val);  
 		sendStringLen = sprintf(sendString,"%s %.2f",aChannels[channel].broadcastName,val*aChannels[channel].multiplier);
-		printf("%i %i\n",sendStringLen,strlen(sendString));
 
 		/* Broadcast sendString in datagram to clients once */
 		if (sendto(sock, sendString, sendStringLen, 0, (struct sockaddr *) &broadcastAddr, sizeof(broadcastAddr)) != sendStringLen)
-       			DieWithError("sendto() sent a different number of bytes than expected");
-		printf("y");
+       			DieWithError("sendto() sent a different number of bytes than expected"); 
 		}
-	printf("z");
 	sleep(1);
 	}
 
