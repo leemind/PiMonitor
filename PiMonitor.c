@@ -19,7 +19,6 @@
 #include <wiringPi.h>
 #include <time.h>
 
-#include "BroadcastCommon.h"
 #include "PiMonitor.h"
 
 /* MAIN LOOP */
@@ -44,7 +43,7 @@ FILE *logfilepointer;
 int numChannels;
 Channels aChannels[9];
 
-numChannels = readChannels(channelsfile,aChannels);
+numChannels = readchannels(channelsfile,aChannels);
 
 retValue = gettimeofday(&lastPulseTime,NULL);
 
@@ -65,10 +64,6 @@ printf("wiringPiISR() - %i\n",retValue);
 /* TEMP HARDCODE! */
 broadcastPort = 2345;
 broadcastIP = "255.255.255.255";
-aChannels[1].broadcastName = "BatteryVoltage";
-aChannels[1].multiplier = 1;
-aChannels[8].broadcastName = "WindDirection";
-aChannels[8].multiplier = 1;
 
 /* Create socket for sending/receiving datagrams */
 if ((sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
@@ -87,10 +82,10 @@ broadcastAddr.sin_port = htons(broadcastPort);         /* Broadcast port */
 
 while(1)
 	{
-	for(channel=8;channel<=numChannels;++channel)
+	for(channel=1;channel<=numChannels;++channel)
 		{
 		val = getadc(channel);
-		printf ("Channel: %d  - %2.4fV\n",channel,val);  
+		printf ("Channel: %d String %s Value %2.4f\n",channel,aChannels[channel].broadcastName,val);  
 		sendStringLen = sprintf(sendString,"%s %.2f",aChannels[channel].broadcastName,val*aChannels[channel].multiplier);
 
 		/* Broadcast sendString in datagram to clients once */
@@ -241,24 +236,24 @@ while(fgets(line,MAX_STRING_LENGTH,file) !=NULL)
 return arrayloc;
 }
 
-int readchannels(char *configfile, Channels *channel)
+int readchannels(char *configfile, Channels channel[])
 {
 char line[MAX_STRING_LENGTH];
 int linenum=0;
-int arrayloc=0;
+int arrayloc=1;
 FILE *file;
 int len=0;
 
+printf("Channels File %s\n",configfile);
+
 file = fopen(configfile,"r");
 
-if(file == NULL) exit(1);
+if(file == NULL) DieWithError("Channels file is NULL");
 
 while(fgets(line,MAX_STRING_LENGTH,file) !=NULL)
         {
         char key[MAX_STRING_LENGTH],value[MAX_STRING_LENGTH];
-
         len = strlen(line);
-
         line[len-1]='\0';
 
         linenum++;
@@ -271,10 +266,10 @@ while(fgets(line,MAX_STRING_LENGTH,file) !=NULL)
                 continue;
                 }
         strcpy(channel[arrayloc].broadcastName,key);
-	channel[arrayloc].multipler = atoi(value);
+	channel[arrayloc].multiplier = atoi(value);
         printf("Line %d: Key=%s Value=%s\n",linenum,key,value); 
         arrayloc++;
         }
-return arrayloc;
+return arrayloc-1;
 }
 

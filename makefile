@@ -1,11 +1,9 @@
 CC = gcc
 CFLAGS = -g
+LDFLAGS += -lwiringPi
 
 all: PiMonitor 
 
-PiMonitor: PiMonitor.o BroadcastCommon.o 
+PiMonitor: PiMonitor.o 
 	$(CC) $(LDFLAGS) -o $@ $^
-
-BroadcastCommon.o: BroadcastCommon.c 
-	$(CC) $(LDFLAGS) -c -o $@ $^
 
