@@ -1,5 +1,6 @@
 /* PiMonitor.c -- Monitors various analog & Digital channnels and spits them out on a UDP socket */
 /* Based on adc.c from ABElectronics and an example bit of code for UDP Broadcast		 */
+/* Also include code from wiringPi to handle the interupts to measure windspeed			*/
 
 #include <stdio.h>
 #include <stdint.h>
@@ -15,46 +16,50 @@
 #include <unistd.h>     /* for close() */
 #include <fcntl.h>
 #include <linux/i2c-dev.h>
+#include <wiringPi.h>
+#include <time.h>
 
 #include "BroadcastCommon.h"
 #include "PiMonitor.h"
 
-// define adc chips addresses and channel modes
-#define ADC_1 		0x68
-#define ADC_2 		0x69
-#define ADC_CHANNEL1	0x9C
-#define ADC_CHANNEL2	0xBC
-#define ADC_CHANNEL3 	0xDC
-#define ADC_CHANNEL4	0xFC
-
-const float varDivisior = 64; // from pdf sheet on adc addresses and config for 18 bit mode
-static float varMultiplier = 0;
-
-float getadc (int chn);  
-
 /* MAIN LOOP */
-int main(int argc, char **argv) {
+int main(int argc, char **argv) 
+{
 int i;
 float val;
 int channel;
+int retValue;
 // setup multiplier based on input voltage range and divisor value
 varMultiplier = (2.4705882/varDivisior)/1000;
 
-int sock;                         /* Socket */
-struct sockaddr_in broadcastAddr; /* Broadcast address */
-char *broadcastIP;                /* IP broadcast address */
-unsigned short broadcastPort;     /* Server port */
 char sendString[255];                 /* String to broadcast */
-int broadcastPermission;          /* Socket opt to set permission to broadcast */
 unsigned int sendStringLen;       /* Length of string to broadcast */
 char *configkeys[MAX_CONFIG_LINES];          /* config file entries */
 char *configvalues[MAX_CONFIG_LINES];          /* config file entries */
 char *configfile="/etc/pimonitor/pimonitor.conf";
+char *channelsfile="/etc/pimonitor/channels.conf";
 char *logfile;
 FILE *logfilepointer;
-int numChannels = 8;
 
+int numChannels;
 Channels aChannels[9];
+
+numChannels = readChannels(channelsfile,aChannels);
+
+retValue = gettimeofday(&lastPulseTime,NULL);
+
+int windSpeedPin = 0;
+
+/* Setup WiringPi */
+retValue = wiringPiSetup();
+printf("wiringPiSetup() - %i\n",retValue);
+
+pullUpDnControl(windSpeedPin,PUD_UP);
+
+/* register call back function for measuring wind speed */
+retValue = wiringPiISR(windSpeedPin,INT_EDGE_FALLING,*measureWindSpeed);
+printf("wiringPiISR() - %i\n",retValue);
+
 
 
 /* TEMP HARDCODE! */
@@ -109,6 +114,7 @@ while(1)
 */
 }
 
+
 float getadc (int chn){
   unsigned int fh,dummy, adc, adc_channel;
   float val;
@@ -151,3 +157,124 @@ float getadc (int chn){
   val = dummy * varMultiplier;
   return val;
 }
+
+void measureWindSpeed()
+{
+if(pulseCounter < PULSE_COUNTS)
+	{
+	++pulseCounter;
+	printf("Pulse Counter = %i\n",pulseCounter);
+	return;
+	}
+struct timeval now;
+gettimeofday(&now,NULL);
+char sendString[255];                 /* String to broadcast */
+unsigned int sendStringLen;       /* Length of string to broadcast */
+double val;
+
+int useconds = (now.tv_sec*1000000+now.tv_usec) - (lastPulseTime.tv_sec*1000000+lastPulseTime.tv_usec);
+
+
+val = (1000000*PULSE_COUNTS)/useconds;
+
+sendStringLen = sprintf(sendString,"WindSpeed %.2f",val);
+
+/* Broadcast sendString in datagram to clients once */
+if (sendto(sock, sendString, sendStringLen, 0, (struct sockaddr *) &broadcastAddr, sizeof(broadcastAddr)) != sendStringLen)
+	DieWithError("sendto() sent a different number of bytes than expected"); 
+
+printf("Avg Time Diff = %i\n",useconds/PULSE_COUNTS);
+printf("Freq = %.2f\n",val);
+
+lastPulseTime.tv_sec = now.tv_sec;
+lastPulseTime.tv_usec = now.tv_usec;
+
+pulseCounter = 0;
+}
+
+
+// #include <stdio.h>  /* for perror() */
+// #include <stdlib.h> /* for exit() */
+// #include <string.h>
+// #include "BroadcastCommon.h"
+
+void DieWithError(char *errorMessage)
+{
+    perror(errorMessage);
+    exit(1);
+}
+
+int readconfig(char *configfile,char *keys[],char *values[])
+{
+char line[MAX_STRING_LENGTH];
+int linenum=0;
+int arrayloc=0;
+FILE *file;
+int len=0;
+
+file = fopen(configfile,"r");
+
+if(file == NULL) exit(1);
+
+while(fgets(line,MAX_STRING_LENGTH,file) !=NULL)
+        {
+        char key[MAX_STRING_LENGTH],value[MAX_STRING_LENGTH];
+
+        len = strlen(line);
+
+        line[len-1]='\0';
+
+        linenum++;
+
+        if(line[0] == '#' || line[0] == '\n') continue;
+
+        if(sscanf(line, "%s %[^\n]s",key,value) != 2)
+                {
+                fprintf(stderr,"Syntax Error in file %s at line %d\n",configfile,linenum);
+                continue;
+                }
+        strcpy(keys[arrayloc],key);
+        strcpy(values[arrayloc],value);
+/*      printf("Line %d: Key=%s Value=%s\n",linenum,key,value); */
+        arrayloc++;
+        }
+return arrayloc;
+}
+
+int readchannels(char *configfile, Channels *channel)
+{
+char line[MAX_STRING_LENGTH];
+int linenum=0;
+int arrayloc=0;
+FILE *file;
+int len=0;
+
+file = fopen(configfile,"r");
+
+if(file == NULL) exit(1);
+
+while(fgets(line,MAX_STRING_LENGTH,file) !=NULL)
+        {
+        char key[MAX_STRING_LENGTH],value[MAX_STRING_LENGTH];
+
+        len = strlen(line);
+
+        line[len-1]='\0';
+
+        linenum++;
+
+        if(line[0] == '#' || line[0] == '\n') continue;
+
+        if(sscanf(line, "%s %[^\n]s",key,value) != 2)
+                {
+                fprintf(stderr,"Syntax Error in file %s at line %d\n",configfile,linenum);
+                continue;
+                }
+        strcpy(channel[arrayloc].broadcastName,key);
+	channel[arrayloc].multipler = atoi(value);
+        printf("Line %d: Key=%s Value=%s\n",linenum,key,value); 
+        arrayloc++;
+        }
+return arrayloc;
+}
+
