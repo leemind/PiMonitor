@@ -33,6 +33,7 @@ varMultiplier = (2.4705882/varDivisior)/1000;
 
 char sendString[255];                 /* String to broadcast */
 unsigned int sendStringLen;       /* Length of string to broadcast */
+/* Could use a struct like for channels but re-suing old code */
 char *configkeys[MAX_CONFIG_LINES];          /* config file entries */
 char *configvalues[MAX_CONFIG_LINES];          /* config file entries */
 char *configfile="/etc/pimonitor/pimonitor.conf";
@@ -40,11 +41,37 @@ char *channelsfile="/etc/pimonitor/channels.conf";
 char *logfile;
 FILE *logfilepointer;
 
-int numChannels;
+int numChannels=0;
 Channels aChannels[9];
 
-numChannels = readchannels(channelsfile,aChannels);
+/* Allocate some memory for our array of pointers */
+for(i = 0;i < MAX_CONFIG_LINES;++i)
+        {
+        configkeys[i]=malloc(MAX_STRING_LENGTH);
+        configvalues[i]=malloc(MAX_STRING_LENGTH);
+        }
 
+/* Read config file - not a lot here */
+readconfig(configfile,configkeys,configvalues);
+
+/* Allocate config file */
+for(i = 0 ; i < MAX_CONFIG_LINES ; ++i)
+        {
+        if(strcmp(configkeys[i],"BroadcastIP") == 0 )
+                strcpy(broadcastIP,configvalues[i]);
+        if(strcmp(configkeys[i],"BroadcastPort") == 0 )
+                broadcastPort = atoi(configvalues[i]);
+	if(strcmp(configkeys[i],"LogFile") == 0 ) 
+		logfile = configvalues[i];
+        }
+
+
+/* read the config file for channels (usually, channels.conf) */
+numChannels = readchannels(channelsfile,aChannels);
+printf("Number of Channels = %i\n",numChannels);
+
+
+/* Just set this to something - first reading will be off, but not important */
 retValue = gettimeofday(&lastPulseTime,NULL);
 
 int windSpeedPin = 0;
@@ -59,11 +86,7 @@ pullUpDnControl(windSpeedPin,PUD_UP);
 retValue = wiringPiISR(windSpeedPin,INT_EDGE_FALLING,*measureWindSpeed);
 printf("wiringPiISR() - %i\n",retValue);
 
-
-
-/* TEMP HARDCODE! */
-broadcastPort = 2345;
-broadcastIP = "255.255.255.255";
+printf("Broadcasting on IP: %s on Port %i\n",broadcastIP,broadcastPort);
 
 /* Create socket for sending/receiving datagrams */
 if ((sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
@@ -230,10 +253,10 @@ while(fgets(line,MAX_STRING_LENGTH,file) !=NULL)
                 }
         strcpy(keys[arrayloc],key);
         strcpy(values[arrayloc],value);
-/*      printf("Line %d: Key=%s Value=%s\n",linenum,key,value); */
+        printf("Line %d: Key=%s Value=%s\n",linenum,key,value); 
         arrayloc++;
         }
-return arrayloc;
+return arrayloc-1;
 }
 
 int readchannels(char *configfile, Channels channel[])

@@ -20,7 +20,7 @@ static struct timeval lastPulseTime;
 /* Making these static so I can use in the callback.  Probably a better way... */
 static int sock;                         /* Socket */
 static struct sockaddr_in broadcastAddr; /* Broadcast address */
-static char *broadcastIP;                /* IP broadcast address */
+static char broadcastIP[MAX_STRING_LENGTH];                /* IP broadcast address */
 static unsigned short broadcastPort;     /* Server port */
 static int broadcastPermission;          /* Socket opt to set permission to broadcast */
 
