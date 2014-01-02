@@ -28,8 +28,6 @@ int i;
 float val;
 int channel;
 int retValue;
-// setup multiplier based on input voltage range and divisor value
-varMultiplier = (2.4705882/varDivisior)/1000;
 
 char sendString[255];                 /* String to broadcast */
 unsigned int sendStringLen;       /* Length of string to broadcast */
@@ -107,7 +105,7 @@ while(1)
 	{
 	for(channel=1;channel<=numChannels;++channel)
 		{
-		val = getadc(channel);
+		val = getadc(aChannels[channel].ADC,aChannels[channel].ADC_CHANNEL,aChannels[channel].divisor);
 		printf ("Channel: %d String %s Value %2.4f\n",channel,aChannels[channel].broadcastName,val);  
 		sendStringLen = sprintf(sendString,"%s %.2f",aChannels[channel].broadcastName,val*aChannels[channel].multiplier);
 
@@ -117,65 +115,51 @@ while(1)
 		}
 	sleep(1);
 	}
-
-/*  if (argc>1) channel=atoi(argv[1]);
-  if (channel <1|channel>8) channel=1;
-  // loop for 500 samples and print to terminal
-  for (i=0;i<500;i++){
-    val = getadc (channel);
-	if (val <= 5.5) {
-		printf ("Channel: %d  - %2.4fV\n",channel,val);  
-	}
-    sleep (0.5);
-  }
-  return 0; 
-*/
 }
 
 
-float getadc (int chn){
-  unsigned int fh,dummy, adc, adc_channel;
-  float val;
-  __u8  res[4];
-  // select chip and channel from args
-  switch (chn){
-    case 1: { adc=ADC_1; adc_channel=ADC_CHANNEL1; }; break;
-    case 2: { adc=ADC_1; adc_channel=ADC_CHANNEL2; }; break;
-    case 3: { adc=ADC_1; adc_channel=ADC_CHANNEL3; }; break;
-    case 4: { adc=ADC_1; adc_channel=ADC_CHANNEL4; }; break;
-    case 5: { adc=ADC_2; adc_channel=ADC_CHANNEL1; }; break;
-    case 6: { adc=ADC_2; adc_channel=ADC_CHANNEL2; }; break;
-    case 7: { adc=ADC_2; adc_channel=ADC_CHANNEL3; }; break;
-    case 8: { adc=ADC_2; adc_channel=ADC_CHANNEL4; }; break;
-    default: { adc=ADC_1; adc_channel=ADC_CHANNEL1; }; break;
-  }
-  // open /dev/i2c-0 for version 1 Raspberry Pi boards
-  // open /dev/i2c-1 for version 2 Raspberry Pi boards
-  fh = open("/dev/i2c-1", O_RDWR);
-  ioctl(fh,I2C_SLAVE,adc);
-  // send request for channel
-  i2c_smbus_write_byte (fh, adc_channel);
-  usleep (50000);
-  // read 4 bytes of data
-  i2c_smbus_read_i2c_block_data(fh,adc_channel,4,res);
-  // loop to check new value is available and then return value
-  while (res[3] & 128){
-	  // read 4 bytes of data
-	  i2c_smbus_read_i2c_block_data(fh,adc_channel,4,res);
-  }
-  usleep(50000);
-  close (fh);
+float getadc(unsigned int adc,unsigned int adc_channel, int varDivisor) {
+unsigned int fh,dummy;
+float val;
+__u8  res[4];
+
+// setup multiplier based on input voltage range and divisor value
+float varMultiplier = (2.4705882/varDivisior)/1000;
+
+// open /dev/i2c-0 for version 1 Raspberry Pi boards
+// open /dev/i2c-1 for version 2 Raspberry Pi boards
+fh = open("/dev/i2c-1", O_RDWR);
+ioctl(fh,I2C_SLAVE,adc);
+// send request for channel
+i2c_smbus_write_byte (fh, adc_channel);
+usleep (50000);
+// read 4 bytes of data
+i2c_smbus_read_i2c_block_data(fh,adc_channel,4,res);
+// loop to check new value is available and then return value
+while (res[3] & 128)
+	{
+	// read 4 bytes of data
+	i2c_smbus_read_i2c_block_data(fh,adc_channel,4,res);
+	}
+usleep(50000);
+close (fh);
 
   // shift bits to product result
   dummy = ((res[0] & 0b00000001) << 16) | (res[1] << 8) | res[2];
 
-  // check if positive or negative number and invert if needed
-  if (res[0]>=128) dummy = ~(0x020000 - dummy);
+printf("Dummy: %i %x %x %x\n",dummy,res[0],res[1],res[2]);
+
+// check if positive or negative number and invert if needed
+//  if (res[0]>=128) dummy = ~(0x020000 - dummy);
+if (res[0]>=128) dummy = 0;
  
+//printf("Dummy: %i %x %x %x\n",dummy,res[0],res[1],res[2]);
+
   val = dummy * varMultiplier;
   return val;
 }
 
+/* This is called on a GPIO interupt */
 void measureWindSpeed()
 {
 if(pulseCounter < PULSE_COUNTS)
@@ -275,7 +259,7 @@ if(file == NULL) DieWithError("Channels file is NULL");
 
 while(fgets(line,MAX_STRING_LENGTH,file) !=NULL)
         {
-        char key[MAX_STRING_LENGTH],value[MAX_STRING_LENGTH];
+        char key[MAX_STRING_LENGTH],value1[MAX_STRING_LENGTH],value2[MAX_STRING_LENGTH],value3[MAX_STRING_LENGTH],value4[MAX_STRING_LENGTH];
         len = strlen(line);
         line[len-1]='\0';
 
@@ -283,14 +267,18 @@ while(fgets(line,MAX_STRING_LENGTH,file) !=NULL)
 
         if(line[0] == '#' || line[0] == '\n') continue;
 
-        if(sscanf(line, "%s %[^\n]s",key,value) != 2)
+        if(sscanf(line, "%s %s %s %s %[^\n]s",key,value1,value2,value3,value4) != 5)
                 {
                 fprintf(stderr,"Syntax Error in file %s at line %d\n",configfile,linenum);
                 continue;
                 }
         strcpy(channel[arrayloc].broadcastName,key);
-	channel[arrayloc].multiplier = atoi(value);
-        printf("Line %d: Key=%s Value=%s\n",linenum,key,value); 
+	channel[arrayloc].multiplier = atoi(value1);
+	channel[arrayloc].ADC = (unsigned int)strtol(value2,NULL,0);
+	channel[arrayloc].ADC_CHANNEL = (unsigned int)strtol(value3,NULL,0);
+	channel[arrayloc].divisor = atoi(value3);
+        printf("Line %d: Key=%s Value1=%s Value2=%s Value3=%s\n",linenum,key,value1,value2,value3); 
+	printf("Converted: %i %i\n",channel[arrayloc].ADC,channel[arrayloc].ADC_CHANNEL);
         arrayloc++;
         }
 return arrayloc-1;

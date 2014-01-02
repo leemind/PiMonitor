@@ -12,7 +12,7 @@
 #define MAX_CONFIG_LINES 25
 
 const float varDivisior = 64; // from pdf sheet on adc addresses and config for 18 bit mode
-static float varMultiplier = 0;
+//static float varMultiplier = 0;
 
 static int pulseCounter = 0;
 static struct timeval lastPulseTime; 
@@ -24,10 +24,10 @@ static char broadcastIP[MAX_STRING_LENGTH];                /* IP broadcast addre
 static unsigned short broadcastPort;     /* Server port */
 static int broadcastPermission;          /* Socket opt to set permission to broadcast */
 
-typedef struct Channels { char broadcastName[MAX_STRING_LENGTH]; int multiplier; } Channels;
+typedef struct Channels { char broadcastName[MAX_STRING_LENGTH]; int multiplier; unsigned int ADC; unsigned int ADC_CHANNEL; int divisor; } Channels;
 
 void measureWindSpeed();
-float getadc (int chn);
+float getadc (unsigned int,unsigned int,int);
 void DieWithError(char *errorMessage);  /* External error handling function */
 int readconfig(char *,char *[],char *[]);
 int readchannels(char *,Channels[]);
