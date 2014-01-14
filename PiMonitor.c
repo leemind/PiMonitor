@@ -22,7 +22,7 @@
 #include "PiMonitor.h"
 
 /* MAIN LOOP */
-int main(int argc, char **argv) 
+int main(int argc, char *argv[]) 
 {
 int i;
 float val;
@@ -41,6 +41,16 @@ FILE *logfilepointer;
 
 int numChannels=0;
 Channels aChannels[9];
+
+for(i=1;i<argc;++i)
+	{
+	if(strcmp(argv[i],"--debug") == 0)
+		{
+		if(argc<=(++i)) DieWithError("Useage: PiMonitor --debug <level>  Please include an integer debug level >= 1\n");
+		}
+	debuglevel = atoi(argv[i]);
+	}
+		
 
 /* Allocate some memory for our array of pointers */
 for(i = 0;i < MAX_CONFIG_LINES;++i)
@@ -66,7 +76,7 @@ for(i = 0 ; i < MAX_CONFIG_LINES ; ++i)
 
 /* read the config file for channels (usually, channels.conf) */
 numChannels = readchannels(channelsfile,aChannels);
-printf("Number of Channels = %i\n",numChannels);
+if(debuglevel>0) printf("Number of Channels = %i\n",numChannels);
 
 
 /* Just set this to something - first reading will be off, but not important */
@@ -76,15 +86,15 @@ int windSpeedPin = 0;
 
 /* Setup WiringPi */
 retValue = wiringPiSetup();
-printf("wiringPiSetup() - %i\n",retValue);
+if(debuglevel>0) printf("wiringPiSetup() - %i\n",retValue);
 
 pullUpDnControl(windSpeedPin,PUD_UP);
 
 /* register call back function for measuring wind speed */
 retValue = wiringPiISR(windSpeedPin,INT_EDGE_FALLING,*measureWindSpeed);
-printf("wiringPiISR() - %i\n",retValue);
+if(debuglevel>0) printf("wiringPiISR() - %i\n",retValue);
 
-printf("Broadcasting on IP: %s on Port %i\n",broadcastIP,broadcastPort);
+if(debuglevel>0) printf("Broadcasting on IP: %s on Port %i\n",broadcastIP,broadcastPort);
 
 /* Create socket for sending/receiving datagrams */
 if ((sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
@@ -106,7 +116,7 @@ while(1)
 	for(channel=1;channel<=numChannels;++channel)
 		{
 		val = getadc(aChannels[channel].ADC,aChannels[channel].ADC_CHANNEL,aChannels[channel].divisor);
-		printf ("Channel: %d String %s Value %2.4f\n",channel,aChannels[channel].broadcastName,val);  
+		if(debuglevel>0) printf ("Channel: %d String %s Value %2.4f\n",channel,aChannels[channel].broadcastName,val);  
 		sendStringLen = sprintf(sendString,"%s %.2f",aChannels[channel].broadcastName,val*aChannels[channel].multiplier);
 
 		/* Broadcast sendString in datagram to clients once */
@@ -147,13 +157,13 @@ close (fh);
   // shift bits to product result
   dummy = ((res[0] & 0b00000001) << 16) | (res[1] << 8) | res[2];
 
-printf("Dummy: %i %x %x %x\n",dummy,res[0],res[1],res[2]);
+if(debuglevel>0) printf("Dummy: %i %x %x %x\n",dummy,res[0],res[1],res[2]);
 
 // check if positive or negative number and invert if needed
 //  if (res[0]>=128) dummy = ~(0x020000 - dummy);
 if (res[0]>=128) dummy = 0;
  
-//printf("Dummy: %i %x %x %x\n",dummy,res[0],res[1],res[2]);
+//if(debuglevel>0) printf("Dummy: %i %x %x %x\n",dummy,res[0],res[1],res[2]);
 
   val = dummy * varMultiplier;
   return val;
@@ -165,7 +175,7 @@ void measureWindSpeed()
 if(pulseCounter < PULSE_COUNTS)
 	{
 	++pulseCounter;
-	printf("Pulse Counter = %i\n",pulseCounter);
+	if(debuglevel>0) printf("Pulse Counter = %i\n",pulseCounter);
 	return;
 	}
 struct timeval now;
@@ -177,7 +187,7 @@ double val;
 int useconds = (now.tv_sec*1000000+now.tv_usec) - (lastPulseTime.tv_sec*1000000+lastPulseTime.tv_usec);
 
 
-val = (1000000*PULSE_COUNTS)/useconds;
+val = (double) (1000000*PULSE_COUNTS)/useconds;
 
 sendStringLen = sprintf(sendString,"WindSpeed %.2f",val);
 
@@ -185,8 +195,8 @@ sendStringLen = sprintf(sendString,"WindSpeed %.2f",val);
 if (sendto(sock, sendString, sendStringLen, 0, (struct sockaddr *) &broadcastAddr, sizeof(broadcastAddr)) != sendStringLen)
 	DieWithError("sendto() sent a different number of bytes than expected"); 
 
-printf("Avg Time Diff = %i\n",useconds/PULSE_COUNTS);
-printf("Freq = %.2f\n",val);
+if(debuglevel>0) printf("Avg Time Diff = %i\n",useconds/PULSE_COUNTS);
+if(debuglevel>0) printf("Freq = %.2f\n",val);
 
 lastPulseTime.tv_sec = now.tv_sec;
 lastPulseTime.tv_usec = now.tv_usec;
@@ -237,7 +247,7 @@ while(fgets(line,MAX_STRING_LENGTH,file) !=NULL)
                 }
         strcpy(keys[arrayloc],key);
         strcpy(values[arrayloc],value);
-        printf("Line %d: Key=%s Value=%s\n",linenum,key,value); 
+        if(debuglevel>0) printf("Line %d: Key=%s Value=%s\n",linenum,key,value); 
         arrayloc++;
         }
 return arrayloc-1;
@@ -251,7 +261,7 @@ int arrayloc=1;
 FILE *file;
 int len=0;
 
-printf("Channels File %s\n",configfile);
+if(debuglevel>0) printf("Channels File %s\n",configfile);
 
 file = fopen(configfile,"r");
 
@@ -273,12 +283,12 @@ while(fgets(line,MAX_STRING_LENGTH,file) !=NULL)
                 continue;
                 }
         strcpy(channel[arrayloc].broadcastName,key);
-	channel[arrayloc].multiplier = atoi(value1);
+	channel[arrayloc].multiplier = atof(value1);
 	channel[arrayloc].ADC = (unsigned int)strtol(value2,NULL,0);
 	channel[arrayloc].ADC_CHANNEL = (unsigned int)strtol(value3,NULL,0);
 	channel[arrayloc].divisor = atoi(value3);
-        printf("Line %d: Key=%s Value1=%s Value2=%s Value3=%s\n",linenum,key,value1,value2,value3); 
-	printf("Converted: %i %i\n",channel[arrayloc].ADC,channel[arrayloc].ADC_CHANNEL);
+        if(debuglevel>0) printf("Line %d: Key=%s Value1=%.2f Value2=%s Value3=%s\n",linenum,key,value1,value2,value3); 
+	if(debuglevel>0) printf("Converted: %i %i\n",channel[arrayloc].ADC,channel[arrayloc].ADC_CHANNEL);
         arrayloc++;
         }
 return arrayloc-1;

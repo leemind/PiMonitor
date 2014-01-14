@@ -24,7 +24,9 @@ static char broadcastIP[MAX_STRING_LENGTH];                /* IP broadcast addre
 static unsigned short broadcastPort;     /* Server port */
 static int broadcastPermission;          /* Socket opt to set permission to broadcast */
 
-typedef struct Channels { char broadcastName[MAX_STRING_LENGTH]; int multiplier; unsigned int ADC; unsigned int ADC_CHANNEL; int divisor; } Channels;
+static int debuglevel = 0;
+
+typedef struct Channels { char broadcastName[MAX_STRING_LENGTH]; float multiplier; unsigned int ADC; unsigned int ADC_CHANNEL; int divisor; } Channels;
 
 void measureWindSpeed();
 float getadc (unsigned int,unsigned int,int);
