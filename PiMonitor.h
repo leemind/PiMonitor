@@ -26,7 +26,7 @@ static int broadcastPermission;          /* Socket opt to set permission to broa
 
 static int debuglevel = 0;
 
-typedef struct Channels { char broadcastName[MAX_STRING_LENGTH]; float multiplier; unsigned int ADC; unsigned int ADC_CHANNEL; int divisor; } Channels;
+typedef struct Channels { char broadcastName[MAX_STRING_LENGTH]; float multiplier; unsigned int ADC; unsigned int ADC_CHANNEL; int divisor; int offset; } Channels;
 
 void measureWindSpeed();
 float getadc (unsigned int,unsigned int,int);

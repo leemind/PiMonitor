@@ -117,7 +117,7 @@ while(1)
 		{
 		val = getadc(aChannels[channel].ADC,aChannels[channel].ADC_CHANNEL,aChannels[channel].divisor);
 		if(debuglevel>0) printf ("Channel: %d String %s Value %2.4f\n",channel,aChannels[channel].broadcastName,val);  
-		sendStringLen = sprintf(sendString,"%s %.2f",aChannels[channel].broadcastName,val*aChannels[channel].multiplier);
+		sendStringLen = sprintf(sendString,"%s %.2f",aChannels[channel].broadcastName,(val*aChannels[channel].multiplier)+aChannels[channel].offset);
 
 		/* Broadcast sendString in datagram to clients once */
 		if (sendto(sock, sendString, sendStringLen, 0, (struct sockaddr *) &broadcastAddr, sizeof(broadcastAddr)) != sendStringLen)
@@ -269,7 +269,7 @@ if(file == NULL) DieWithError("Channels file is NULL");
 
 while(fgets(line,MAX_STRING_LENGTH,file) !=NULL)
         {
-        char key[MAX_STRING_LENGTH],value1[MAX_STRING_LENGTH],value2[MAX_STRING_LENGTH],value3[MAX_STRING_LENGTH],value4[MAX_STRING_LENGTH];
+        char key[MAX_STRING_LENGTH],value1[MAX_STRING_LENGTH],value2[MAX_STRING_LENGTH],value3[MAX_STRING_LENGTH],value4[MAX_STRING_LENGTH],value5[MAX_STRING_LENGTH];
         len = strlen(line);
         line[len-1]='\0';
 
@@ -277,7 +277,7 @@ while(fgets(line,MAX_STRING_LENGTH,file) !=NULL)
 
         if(line[0] == '#' || line[0] == '\n') continue;
 
-        if(sscanf(line, "%s %s %s %s %[^\n]s",key,value1,value2,value3,value4) != 5)
+        if(sscanf(line, "%s %s %s %s %s %[^\n]s",key,value1,value2,value3,value4,value5) != 6)
                 {
                 fprintf(stderr,"Syntax Error in file %s at line %d\n",configfile,linenum);
                 continue;
@@ -286,7 +286,8 @@ while(fgets(line,MAX_STRING_LENGTH,file) !=NULL)
 	channel[arrayloc].multiplier = atof(value1);
 	channel[arrayloc].ADC = (unsigned int)strtol(value2,NULL,0);
 	channel[arrayloc].ADC_CHANNEL = (unsigned int)strtol(value3,NULL,0);
-	channel[arrayloc].divisor = atoi(value3);
+	channel[arrayloc].divisor = atoi(value4);
+	channel[arrayloc].offset = atoi(value5);
         if(debuglevel>0) printf("Line %d: Key=%s Value1=%.2f Value2=%s Value3=%s\n",linenum,key,value1,value2,value3); 
 	if(debuglevel>0) printf("Converted: %i %i\n",channel[arrayloc].ADC,channel[arrayloc].ADC_CHANNEL);
         arrayloc++;
