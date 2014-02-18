@@ -26,6 +26,7 @@ int main(int argc, char *argv[])
 {
 int i;
 float val;
+float calVal;
 int channel;
 int retValue;
 
@@ -116,7 +117,8 @@ while(1)
 	for(channel=1;channel<=numChannels;++channel)
 		{
 		val = getadc(aChannels[channel].ADC,aChannels[channel].ADC_CHANNEL,aChannels[channel].divisor);
-		if(debuglevel>0) printf ("Channel: %d String %s Value %2.4f\n",channel,aChannels[channel].broadcastName,val);  
+		calVal = (val*aChannels[channel].multiplier)+aChannels[channel].offset;
+		if(debuglevel>0) printf ("Channel:%d String:%s Value:%2.4f Calibrated Value: %4.2f\n",channel,aChannels[channel].broadcastName,val,calVal);  
 		sendStringLen = sprintf(sendString,"%s %.2f",aChannels[channel].broadcastName,(val*aChannels[channel].multiplier)+aChannels[channel].offset);
 
 		/* Broadcast sendString in datagram to clients once */
@@ -204,12 +206,6 @@ lastPulseTime.tv_usec = now.tv_usec;
 pulseCounter = 0;
 }
 
-
-// #include <stdio.h>  /* for perror() */
-// #include <stdlib.h> /* for exit() */
-// #include <string.h>
-// #include "BroadcastCommon.h"
-
 void DieWithError(char *errorMessage)
 {
     perror(errorMessage);
@@ -277,7 +273,7 @@ while(fgets(line,MAX_STRING_LENGTH,file) !=NULL)
 
         if(line[0] == '#' || line[0] == '\n') continue;
 
-        if(sscanf(line, "%s %s %s %s %s %[^\n]s",key,value1,value2,value3,value4,value5) != 6)
+        if(sscanf(line, "%s %s %s %s %s %s",key,value1,value2,value3,value4,value5) != 6)
                 {
                 fprintf(stderr,"Syntax Error in file %s at line %d\n",configfile,linenum);
                 continue;
@@ -288,8 +284,8 @@ while(fgets(line,MAX_STRING_LENGTH,file) !=NULL)
 	channel[arrayloc].ADC_CHANNEL = (unsigned int)strtol(value3,NULL,0);
 	channel[arrayloc].divisor = atoi(value4);
 	channel[arrayloc].offset = atoi(value5);
-        if(debuglevel>0) printf("Line %d: Key=%s Value1=%.2f Value2=%s Value3=%s\n",linenum,key,value1,value2,value3); 
-	if(debuglevel>0) printf("Converted: %i %i\n",channel[arrayloc].ADC,channel[arrayloc].ADC_CHANNEL);
+        if(debuglevel>0) printf("Line %d: Key=%s Value1=%s Value2=%s Value3=%s Value4=%i Value5=%i\n",linenum,key,value1,value2,value3,value4,value5); 
+	if(debuglevel>0) printf("Converted: Multiplier %.2f ADC:%i ADC_CHANNEL:%i Divisor:%i Offset:%i\n",channel[arrayloc].multiplier,channel[arrayloc].ADC,channel[arrayloc].ADC_CHANNEL,channel[arrayloc].divisor,channel[arrayloc].offset);
         arrayloc++;
         }
 return arrayloc-1;
